@@ -1,0 +1,14 @@
+fastapi
+sqlalchemy
+pydantic
+uvicorn
+databases
+python-dotenv
+psycopg2-binary
+scikit-surprise
+pandas
+#numpy<2.0
+cython
+lightfm
+tensorflow
+tensorflow-recommenders
