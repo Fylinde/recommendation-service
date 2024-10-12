@@ -4,6 +4,10 @@ from app.crud.product import get_products_by_ids
 from app.models.product import ProductModel
 from app.models.recommendation import UserInteractionModel
 from app.models.vendor import VendorModel
+from sklearn.cluster import KMeans
+from prophet import Prophet
+import pandas as pd
+from app.services.logistics_service import find_nearest_warehouse_for_region, get_warehouse_info
 
 def recommend_products(user_id: int, db: Session):
     # Fetch user interaction data
@@ -88,3 +92,76 @@ def recommend_vendors(user_id: int, db: Session):
         VendorModel.id.in_(recommended_vendor_ids)).all()
 
     return recommended_vendors
+def recommend_stocking_locations(seller_id: int, db: Session):
+    """
+    Provide stocking recommendations for a seller based on sales trends, buyer locations, and warehouse capacity.
+    """
+    interactions = db.query(UserInteractionModel).filter(
+        UserInteractionModel.product_id.in_(
+            db.query(ProductModel.id).filter(ProductModel.vendor_id == seller_id)
+        )
+    ).all()
+
+    if not interactions:
+        return []
+
+    interaction_data = pd.DataFrame([{
+        'product_id': interaction.product_id,
+        'user_id': interaction.user_id,
+        'location': interaction.user.location,
+        'interaction_type': interaction.interaction_type,
+        'interaction_value': interaction.interaction_value,
+        'date': interaction.timestamp
+    } for interaction in interactions])
+
+    # Time-series demand forecasting
+    demand_forecast = predict_demand(interaction_data)
+
+    # Cluster buyers based on location and purchasing behavior
+    kmeans = KMeans(n_clusters=5)
+    interaction_data['region'] = kmeans.fit_predict(interaction_data[['location']])
+
+    # Fetch warehouse data from Logistics-Service
+    warehouse_data = get_warehouse_info()
+
+    stocking_recommendations = []
+
+    for region in interaction_data['region'].unique():
+        region_data = interaction_data[interaction_data['region'] == region]
+        product_ids = region_data['product_id'].unique()
+
+        nearest_warehouse = find_nearest_warehouse_for_region(region, warehouse_data)
+
+        for product_id in product_ids:
+            stocking_recommendations.append({
+                'product_id': product_id,
+                'warehouse_id': nearest_warehouse['id'],
+                'region': region
+            })
+
+    return stocking_recommendations
+
+
+def predict_demand(interaction_data: pd.DataFrame):
+    """
+    Predict future demand for products using time-series forecasting.
+    """
+    demand_data = interaction_data.groupby('date')['interaction_value'].sum().reset_index()
+    demand_data.columns = ['ds', 'y']
+
+    model = Prophet()
+    model.fit(demand_data)
+
+    future = model.make_future_dataframe(periods=30)
+    forecast = model.predict(future)
+
+    return forecast[['ds', 'yhat']]
+
+def cluster_buyer_behavior(interaction_data: pd.DataFrame):
+    """
+    Cluster buyers based on their behavior and location.
+    """
+    kmeans = KMeans(n_clusters=5)
+    interaction_data['cluster'] = kmeans.fit_predict(interaction_data[['location', 'interaction_value']])
+    
+    return interaction_data

@@ -1,21 +1,12 @@
-"""Initial migration
-
-Revision ID: 6f792de19074
-Revises: 
-Create Date: 2024-08-17 20:16:20.043438
-
-"""
-from typing import Sequence, Union
-
 from alembic import op
 import sqlalchemy as sa
-# 6f792de19074_initial_migration.py
+
 
 # revision identifiers, used by Alembic.
-revision: str = '6f792de19074'
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision = 'bb15b2a14d4a'
+down_revision = '6f792de19074'
+branch_labels = None
+depends_on = None
 
 
 def upgrade():
@@ -41,17 +32,16 @@ def upgrade():
     )
     op.create_index(op.f('ix_stock_levels_id'), 'stock_levels', ['id'], unique=False)
     
-    # Add the timestamp column as nullable first
+    # Add the timestamp column as nullable first to avoid integrity issues
     op.add_column('user_interactions', sa.Column('timestamp', sa.DateTime(), nullable=True))
 
-    # Backfill the existing rows with the current timestamp (or another default)
+    # Backfill existing rows with the current timestamp (or another default)
     op.execute(
         "UPDATE user_interactions SET timestamp = NOW() WHERE timestamp IS NULL"
     )
     
     # Alter the column to be non-nullable
     op.alter_column('user_interactions', 'timestamp', nullable=False)
-
     # ### end Alembic commands ###
 
 

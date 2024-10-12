@@ -12,3 +12,8 @@ def get_item_ids(db: Session):
 def get_interactions(db: Session):
     """Fetch all user interactions as (user_id, product_id) tuples."""
     return [(interaction.user_id, interaction.product_id) for interaction in db.query(UserInteractionModel).all()]
+
+def get_interactions_with_timestamps(db: Session):
+    """Fetch all user interactions as (user_id, product_id, timestamp) tuples."""
+    return [(interaction.user_id, interaction.product_id, interaction.timestamp)
+            for interaction in db.query(UserInteractionModel).all()]

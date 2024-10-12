@@ -5,10 +5,13 @@ uvicorn
 databases
 python-dotenv
 psycopg2-binary
-scikit-surprise
+#scikit-surprise
 pandas
-#numpy<2.0
-cython
+#numpy  # Ensure the latest version is compatible
+#cython
 lightfm
-tensorflow
+#tensorflow
 tensorflow-recommenders
+#alembic
+#pystan==2.19.1.1  # Correct version for prophet
+#prophet  # Keep this for time-series forecasting

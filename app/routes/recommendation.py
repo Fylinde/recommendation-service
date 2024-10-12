@@ -8,6 +8,8 @@ from app.services.recommendation import (
     recommend_products_item_based,
     recommend_products_user_based,
     recommend_vendors,
+    recommend_stocking_locations,  # New stocking recommendation
+    predict_demand  # New demand prediction
 )
 from app.schemas.product import ProductSchema
 from app.schemas.vendor import VendorSchema
@@ -20,11 +22,11 @@ from app.models.recommendation import UserInteractionModel
 from app.crud.product import get_products_by_ids
 from app.crud.interactions import get_interactions, get_item_ids, get_user_ids
 from app.services.tf_recommender import TFRecommender
+from app.schemas.recommendation import StockingRecommendationSchema, DemandForecastSchema
 router = APIRouter()
 
 # Initialize the TFRS model globally
 tf_recommender = None
-
 
 logging.info("Defining routes for the recommendation service...")
 
@@ -70,12 +72,96 @@ def get_vendor_recommendations(user_id: int, db: Session = Depends(get_db)):
     logging.info(f"Found {len(recommendations)} vendor recommendations for user {user_id}.")
     return [VendorSchema.from_orm(vendor) for vendor in recommendations]
 
+# New
+
+# New endpoint for stocking recommendations
+@router.get("/recommendations/stocking/{seller_id}", response_model=List[StockingRecommendationSchema])
+def get_stocking_recommendations(seller_id: int, db: Session = Depends(get_db)):
+    """
+    API to provide stocking recommendations for sellers based on historical sales data and buyer locations.
+    
+    :param seller_id: The ID of the seller.
+    :param db: The database session.
+    :return: A list of recommended products with stocking suggestions.
+    """
+    recommendations = recommend_stocking_locations(seller_id, db)
+    if not recommendations:
+        raise HTTPException(status_code=404, detail="No stocking recommendations found")
+    return recommendations
 
 
+# New endpoint for demand prediction
+@router.get("/recommendations/demand/{seller_id}", response_model=List[DemandForecastSchema])
+def get_demand_prediction(seller_id: int, db: Session = Depends(get_db)):
+    """
+    API to predict product demand for a seller based on historical sales data.
+    
+    :param seller_id: The ID of the seller.
+    :param db: The database session.
+    :return: A dictionary with demand predictions.
+    """
+    try:
+        demand_forecast = predict_demand(seller_id, db)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error predicting demand: {e}")
+    
+    return demand_forecast
 
+
+# Initialize the TensorFlow recommender during the app startup event
+@router.on_event("startup")
+def initialize_tf_recommender():
+    global tf_recommender
+
+    logging.info("Initializing TensorFlow Recommender...")
+
+    # Create a new database session
+    db: Session = SessionLocal()
+
+    try:
+        # Fetch user_ids, item_ids, and interactions from the database
+        user_ids = get_user_ids(db)
+        item_ids = get_item_ids(db)
+        interactions = get_interactions(db)
+
+        if not user_ids or not item_ids or not interactions:
+            raise ValueError("Insufficient data to train recommender model.")
+
+        # Initialize and train the recommender
+        tf_recommender = TFRecommender(user_ids=user_ids, item_ids=item_ids)
+        tf_recommender.train(interactions=interactions)
+
+        logging.info("TensorFlow Recommender initialized successfully.")
+    except Exception as e:
+        logging.error(f"Failed to initialize recommender: {e}")
+        raise HTTPException(status_code=500, detail="Failed to initialize recommender")
+    finally:
+        # Close the database session
+        db.close()
+
+@router.get("/recommendations/tfrs/{user_id}")
+def get_tf_recommendations(user_id: str, db: Session = Depends(get_db)):
+    global tf_recommender
+
+    if tf_recommender is None:
+        raise HTTPException(status_code=500, detail="Model not initialized")
+
+    try:
+        recommendations = tf_recommender.recommend(user_id)
+    except Exception as e:
+        logging.error(f"Failed to get recommendations for user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error fetching recommendations")
+
+    if not recommendations:
+        raise HTTPException(status_code=404, detail="No recommendations found")
+
+    return {"user_id": user_id, "recommendations": recommendations}
+
+# Route to create dummy data for testing purposes
 @router.post("/create_dummy_data/")
 def create_dummy_data(db: Session = Depends(get_db)):
     logging.info("Creating dummy data...")
+
     # Create dummy vendors
     vendor1 = VendorModel(name="Tech Store", description="Your one-stop shop for tech gadgets", rating=4.5)
     vendor2 = VendorModel(name="Gadget Hub", description="Latest and greatest in tech", rating=4.7)
@@ -103,37 +189,3 @@ def create_dummy_data(db: Session = Depends(get_db)):
 
     logging.info("Dummy data created successfully.")
     return {"status": "success", "vendors": [vendor1, vendor2], "products": [product1, product2, product3], "interactions": [interaction1, interaction2, interaction3]}
-
-@router.on_event("startup")
-def initialize_tf_recommender():
-    global tf_recommender
-
-    # Create a new database session
-    db: Session = SessionLocal()
-
-    try:
-        # Fetch user_ids, item_ids, and interactions from the database
-        user_ids = get_user_ids(db)
-        item_ids = get_item_ids(db)
-        interactions = get_interactions(db)
-
-        # Initialize and train the recommender
-        tf_recommender = TFRecommender(user_ids=user_ids, item_ids=item_ids)
-        tf_recommender.train(interactions=interactions)
-    finally:
-        # Close the database session
-        db.close()
-
-@router.get("/recommendations/tfrs/{user_id}")
-def get_tf_recommendations(user_id: str, db: Session = Depends(get_db)):
-    global tf_recommender
-
-    if tf_recommender is None:
-        raise HTTPException(status_code=500, detail="Model not initialized")
-
-    recommendations = tf_recommender.recommend(user_id)
-    
-    if not recommendations:
-        raise HTTPException(status_code=404, detail="No recommendations found")
-    
-    return {"user_id": user_id, "recommendations": recommendations}
