@@ -10,7 +10,7 @@ from alembic import context
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 from app.database import BaseModel
-from app.models.vendor import VendorModel  # Ensure this is imported
+from app.models.seller import SellerModel  # Ensure this is imported
 from app.models.product import ProductModel  # Ensure this is imported
 from app.models.recommendation import UserInteractionModel
 from app.models.stock import StockLevelModel

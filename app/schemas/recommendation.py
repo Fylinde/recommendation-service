@@ -4,7 +4,7 @@ from app.schemas.product import ProductSchema
 
 
 class UserInteractionSchema(BaseModel):
-    user_id: int
+    user_id: str
     product_id: int
     interaction_type: str
     interaction_value: float

@@ -7,16 +7,16 @@ from app.services.recommendation import (
     recommend_products_hybrid,
     recommend_products_item_based,
     recommend_products_user_based,
-    recommend_vendors,
+    recommend_sellers,
     recommend_stocking_locations,  # New stocking recommendation
     predict_demand  # New demand prediction
 )
 from app.schemas.product import ProductSchema
-from app.schemas.vendor import VendorSchema
+from app.schemas.seller import SellerSchema
 from app.schemas.recommendation import RecommendationResponseSchema
 from typing import List
 import logging
-from app.models.vendor import VendorModel
+from app.models.seller import SellerModel
 from app.models.product import ProductModel
 from app.models.recommendation import UserInteractionModel
 from app.crud.product import get_products_by_ids
@@ -61,16 +61,16 @@ def get_recommendations_hybrid(user_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="No hybrid recommendations found")
     return [ProductSchema.from_orm(product) for product in recommendations]
 
-@router.get("/vendor-recommendations/{user_id}", response_model=List[VendorSchema])
-def get_vendor_recommendations(user_id: int, db: Session = Depends(get_db)):
-    recommendations = recommend_vendors(user_id, db)
+@router.get("/seller-recommendations/{user_id}", response_model=List[SellerSchema])
+def get_seller_recommendations(user_id: int, db: Session = Depends(get_db)):
+    recommendations = recommend_sellers(user_id, db)
     
     if not recommendations:
-        logging.info(f"No vendor recommendations found for user {user_id}.")
+        logging.info(f"No seller recommendations found for user {user_id}.")
         raise HTTPException(status_code=404, detail="No recommendations found")
     
-    logging.info(f"Found {len(recommendations)} vendor recommendations for user {user_id}.")
-    return [VendorSchema.from_orm(vendor) for vendor in recommendations]
+    logging.info(f"Found {len(recommendations)} seller recommendations for user {user_id}.")
+    return [SellerSchema.from_orm(seller) for seller in recommendations]
 
 # New
 
@@ -162,18 +162,18 @@ def get_tf_recommendations(user_id: str, db: Session = Depends(get_db)):
 def create_dummy_data(db: Session = Depends(get_db)):
     logging.info("Creating dummy data...")
 
-    # Create dummy vendors
-    vendor1 = VendorModel(name="Tech Store", description="Your one-stop shop for tech gadgets", rating=4.5)
-    vendor2 = VendorModel(name="Gadget Hub", description="Latest and greatest in tech", rating=4.7)
-    db.add_all([vendor1, vendor2])
+    # Create dummy sellers
+    seller1 = SellerModel(name="Tech Store", description="Your one-stop shop for tech gadgets", rating=4.5)
+    seller2 = SellerModel(name="Gadget Hub", description="Latest and greatest in tech", rating=4.7)
+    db.add_all([seller1, seller2])
     db.commit()
-    db.refresh(vendor1)
-    db.refresh(vendor2)
+    db.refresh(seller1)
+    db.refresh(seller2)
 
     # Create dummy products
-    product1 = ProductModel(name="Smartphone X", description="Latest smartphone with amazing features", price=999.99, vendor_id=vendor1.id)
-    product2 = ProductModel(name="Laptop Pro", description="High-performance laptop for professionals", price=1299.99, vendor_id=vendor2.id)
-    product3 = ProductModel(name="Smartwatch Z", description="Smartwatch with health tracking features", price=199.99, vendor_id=vendor1.id)
+    product1 = ProductModel(name="Smartphone X", description="Latest smartphone with amazing features", price=999.99, seller_id=seller1.id)
+    product2 = ProductModel(name="Laptop Pro", description="High-performance laptop for professionals", price=1299.99, seller_id=seller2.id)
+    product3 = ProductModel(name="Smartwatch Z", description="Smartwatch with health tracking features", price=199.99, seller_id=seller1.id)
     db.add_all([product1, product2, product3])
     db.commit()
     db.refresh(product1)
@@ -188,4 +188,4 @@ def create_dummy_data(db: Session = Depends(get_db)):
     db.commit()
 
     logging.info("Dummy data created successfully.")
-    return {"status": "success", "vendors": [vendor1, vendor2], "products": [product1, product2, product3], "interactions": [interaction1, interaction2, interaction3]}
+    return {"status": "success", "sellers": [seller1, seller2], "products": [product1, product2, product3], "interactions": [interaction1, interaction2, interaction3]}

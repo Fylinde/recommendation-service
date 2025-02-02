@@ -3,7 +3,7 @@ from app.crud.recommendation import get_user_interactions
 from app.crud.product import get_products_by_ids
 from app.models.product import ProductModel
 from app.models.recommendation import UserInteractionModel
-from app.models.vendor import VendorModel
+from app.models.seller import SellerModel
 from sklearn.cluster import KMeans
 from prophet import Prophet
 import pandas as pd
@@ -80,25 +80,25 @@ def recommend_products_hybrid(user_id: int, db: Session):
 
     return list(combined_recommendations)
 
-def recommend_vendors(user_id: int, db: Session):
+def recommend_sellers(user_id: int, db: Session):
     # Fetch user interaction data
     user_data = db.query(UserInteractionModel).filter(UserInteractionModel.user_id == user_id).all()
 
-    # Recommend vendors based on the user's product interactions
-    recommended_vendor_ids = db.query(ProductModel.vendor_id).filter(
+    # Recommend sellers based on the user's product interactions
+    recommended_seller_ids = db.query(ProductModel.seller_id).filter(
         ProductModel.id.in_([interaction.product_id for interaction in user_data])).distinct()
 
-    recommended_vendors = db.query(VendorModel).filter(
-        VendorModel.id.in_(recommended_vendor_ids)).all()
+    recommended_sellers = db.query(SellerModel).filter(
+        SellerModel.id.in_(recommended_seller_ids)).all()
 
-    return recommended_vendors
+    return recommended_sellers
 def recommend_stocking_locations(seller_id: int, db: Session):
     """
     Provide stocking recommendations for a seller based on sales trends, buyer locations, and warehouse capacity.
     """
     interactions = db.query(UserInteractionModel).filter(
         UserInteractionModel.product_id.in_(
-            db.query(ProductModel.id).filter(ProductModel.vendor_id == seller_id)
+            db.query(ProductModel.id).filter(ProductModel.seller_id == seller_id)
         )
     ).all()
 
